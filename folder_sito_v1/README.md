@@ -1,1 +1,0 @@
-# consulenza-its-ict
