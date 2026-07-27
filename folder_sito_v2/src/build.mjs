@@ -61,4 +61,4 @@ function main() {
   console.log(`OK  ${OUT}/index.html  (${dati.corsi.length} corsi, ${totaleOre(dati.corsi)} ore, build ${versione})`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+main();
