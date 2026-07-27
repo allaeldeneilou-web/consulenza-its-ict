@@ -16,6 +16,7 @@ S3 bucket:
 - aggiornare polcy, sicurezza e attivare web hosting deletion
 - aggiungere sezione resource per upload di index.html
 
+
 Dynamodb:
 - implementare protezione
 
@@ -36,10 +37,9 @@ RIMEDIO
   blocco degli accessi pubblici, pubblicare
   solo dalla pipeline.
  
+ -----------
  FATTO
     Le policy su block_public_access non sono attive
-
-------------------------
 
 CONSEGUENZA
     Chiunque può accedere al bucket
@@ -50,6 +50,14 @@ RIMEDIO
     - Bloccare policy pubbliche
     - Ignorare accessi pubblici
     - Bloccare la creazione di bucket pubblici
+
+FATTO 
+    si richiede versioning su s3bucket
+
+CONSEGUENZA
+
+RIMEDIO 
+    aggiungere su script tf il versioning
 
 # Dynamo
 
@@ -74,3 +82,7 @@ RIMEDIO
         enabled = true
             }
 ---------------------------    
+per deploy 
+terraform apply -var="ambiente=dev"
+terraform apply -var="ambiente=test"
+terraform apply -var="ambiente=prod"

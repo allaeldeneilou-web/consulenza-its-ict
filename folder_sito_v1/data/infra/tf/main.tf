@@ -64,6 +64,19 @@ resource "aws_dynamodb_table" "iscrizioni" {
     name = "iscrizioneId"
     type = "S"
   }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = {
+    Progetto = "portale-its"
+    Ambiente = "produzione"
+  }
 }
 
 resource "aws_s3_object" "index" {
