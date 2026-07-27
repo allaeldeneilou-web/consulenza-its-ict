@@ -1,14 +1,9 @@
-# portale its - infrastruttura (Terraform, unico IaC - vedi cose.md punto 3)
-# Fix applicati rispetto a folder_sito_v1/infra/tf/main.tf (vedi folder_sito_v2/cose.md):
-#  - nessuna credenziale/token hardcoded nel codice (cose.md 1, 6.1, 6.2)
-#  - provider punta ad AWS reale, non a un endpoint locale di test (cose.md 1)
-#  - bucket policy limitata a lettura pubblica (cose.md 1, 6.3)
-#  - public access block riattivato dove non serve l'eccezione (cose.md 1, 6.3)
-#  - DynamoDB con cifratura e point-in-time recovery (cose.md 1, 6.5)
-#  - ambienti dev/test/prod separabili tramite variabile "environment" (cose.md 5, 6.7)
-
 terraform {
-  required_version = ">= 1.5"
+  backend "s3" {
+    bucket = "portale-its-tfstate"
+    key    = "portale-its/terraform.tfstate"
+    region = "us-east-1"
+  }
 
   required_providers {
     aws = {
@@ -18,34 +13,14 @@ terraform {
   }
 }
 
-variable "aws_region" {
-  type        = string
-  description = "Regione AWS in cui creare le risorse."
-  default     = "eu-south-1"
-}
-
-variable "environment" {
-  type        = string
-  description = "Ambiente di deploy (dev, test, prod)."
-
-  validation {
-    condition     = contains(["dev", "test", "prod"], var.environment)
-    error_message = "environment deve essere uno tra: dev, test, prod."
-  }
-}
-
-variable "api_token_gestionale" {
-  type        = string
-  description = "Token di accesso al gestionale. Va passato da fuori (env var TF_VAR_api_token_gestionale o secrets manager), mai committato con un default reale."
-  sensitive   = true
-}
-
 provider "aws" {
-  region = var.aws_region
+  region = "us-east-1"
 }
+
+# --- S3: sito statico ---
 
 resource "aws_s3_bucket" "sito" {
-  bucket = "portale-its-sito-${var.environment}"
+  bucket = "portale-its-sito"
 }
 
 resource "aws_s3_bucket_website_configuration" "sito" {
@@ -56,16 +31,11 @@ resource "aws_s3_bucket_website_configuration" "sito" {
 }
 
 resource "aws_s3_bucket_public_access_block" "sito" {
-  bucket = aws_s3_bucket.sito.id
-
-  # Il sito e' statico e pubblico per design: la bucket policy sotto concede
-  # solo s3:GetObject in lettura. Gli accessi/permessi basati su ACL restano
-  # bloccati, a differenza della v1 dove tutte e quattro le protezioni erano
-  # disattivate.
+  bucket                  = aws_s3_bucket.sito.id
   block_public_acls       = true
+  block_public_policy     = true
   ignore_public_acls      = true
-  block_public_policy     = false
-  restrict_public_buckets = false
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_policy" "sito" {
@@ -82,25 +52,56 @@ resource "aws_s3_bucket_policy" "sito" {
   depends_on = [aws_s3_bucket_public_access_block.sito]
 }
 
-resource "aws_dynamodb_table" "iscrizioni" {
-  name         = "iscrizioni-${var.environment}"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "iscrizioneId"
+# --- Variabili per i segreti (passate via env o tfvars, mai hardcoded) ---
 
-  attribute {
-    name = "iscrizioneId"
-    type = "S"
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
+variable "api_token_gestionale" {
+  type      = string
+  sensitive = true
 }
 
-output "sito" {
-  value = aws_s3_bucket.sito.bucket
+variable "ftp_host" {
+  type      = string
+  sensitive = true
+}
+
+variable "ftp_user" {
+  type      = string
+  sensitive = true
+}
+
+variable "ftp_password" {
+  type      = string
+  sensitive = true
+}
+
+# --- Secrets Manager ---
+
+resource "aws_secretsmanager_secret" "api_token_gestionale" {
+  name        = "portale-its/api-token-gestionale"
+  description = "Token API per il gestionale ITS"
+}
+
+resource "aws_secretsmanager_secret_version" "api_token_gestionale" {
+  secret_id     = aws_secretsmanager_secret.api_token_gestionale.id
+  secret_string = jsonencode({ token = var.api_token_gestionale })
+}
+
+resource "aws_secretsmanager_secret" "ftp" {
+  name        = "portale-its/ftp"
+  description = "Credenziali FTP legacy (da dismettere)"
+}
+
+resource "aws_secretsmanager_secret_version" "ftp" {
+  secret_id = aws_secretsmanager_secret.ftp.id
+  secret_string = jsonencode({
+    host     = var.ftp_host
+    user     = var.ftp_user
+    password = var.ftp_password
+  })
+}
+
+# --- Output ---
+
+output "sito_url" {
+  value = aws_s3_bucket_website_configuration.sito.website_endpoint
 }
