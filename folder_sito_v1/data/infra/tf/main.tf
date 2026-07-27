@@ -66,6 +66,13 @@ resource "aws_dynamodb_table" "iscrizioni" {
   }
 }
 
+resource "aws_s3_object" "index" {
+  bucket       = aws_s3_bucket.sito.id
+  key          = "index.html"
+  source       = "${path.module}/../../dist/index.html"
+  content_type = "text/html"
+}
+
 output "sito" {
   value = aws_s3_bucket.sito.bucket
 }

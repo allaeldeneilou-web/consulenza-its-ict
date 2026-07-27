@@ -52,3 +52,14 @@ resource "aws_s3_bucket_policy" "sito" {
 output "sito_url" {
   value = aws_s3_bucket_website_configuration.sito.website_endpoint
 }
+
+resource "aws_dynamodb_table" "iscrizioni" {
+  name         = "iscrizioni"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "iscrizioneId"
+
+  attribute {
+    name = "iscrizioneId"
+    type = "S"
+  }
+}
