@@ -1,136 +1,138 @@
 # Perizia tecnica - Portale ITS
 
-## Flusso di build e deploy
+## Flusso di build, controllo e deploy
 
 Il sito è generato staticamente tramite `src/build.mjs`, uno script Node.js senza dipendenze esterne.
 
 ### Ordine delle operazioni
 
-1. **Build** — eseguire lo script prima del deploy:
+1. **Build locale** — eseguire lo script dalla cartella dell'applicazione:
    ```bash
-   node src/build.mjs
+   cd folder_sito
+   npm ci
+   npm test
+   npm run secret-scan
+   npm run build
    ```
-   Lo script legge `data/corsi.json`, genera `dist/index.html` e copia `site/style.css` in `dist/style.css`.
 
-2. **Deploy** — applicare l'infrastruttura Terraform:
+2. **Validazione IaC** — validare Terraform:
    ```bash
-   cd data/infra/tf
-   terraform apply
+   cd folder_sito/infra/tf
+   terraform fmt -check -recursive
+   terraform init -backend=false
+   terraform validate
    ```
-   La risorsa `aws_s3_object "index"` carica `dist/index.html` nel bucket S3 come `index.html`, che è l'entry point configurato in `aws_s3_bucket_website_configuration`.
 
-### Perché non caricare `build.mjs` direttamente
+3. **Deploy** — pubblicare `dist/` tramite GitHub Actions:
+   - workflow: `.github/workflows/deploy.yml`;
+   - trigger: manuale (`workflow_dispatch`);
+   - target: bucket S3 `portale-its-sito`;
+   - controllo finale: smoke test sull'endpoint static website.
 
-`build.mjs` è uno script di build lato server, non un file servibile dal browser. Il bucket S3 è configurato come static website hosting e si aspetta un file `index.html` come documento principale. Caricare lo script JS non avrebbe prodotto un sito funzionante.
+## Automazione CI/CD
 
-Il contenuto corretto da pubblicare è l'output della build (`dist/index.html`), che contiene l'HTML completo generato a partire dai dati in `data/corsi.json`.
+La repository usa GitHub Actions per automatizzare due fasi distinte:
 
--------------------------------------------------------------------------------------
+1. **Continuous Integration (CI)**: controlla automaticamente qualità applicativa e validità dell'infrastruttura prima dell'integrazione su `main`.
+2. **Continuous Delivery/Deployment (CD)**: prepara e pubblica manualmente il sito statico su Amazon S3 dopo che il codice è stato validato.
 
-# CHECKOV
+Questa separazione riduce il rischio operativo: ogni modifica viene prima verificata in pull request, mentre il deploy resta un'azione esplicita e controllata.
 
-Baseline (checkov.yml)
-Contiene:
+### Continuous Integration
 
-configurazione output (compact, quiet)
+Il workflow di CI si trova in:
 
-lista dei controlli da ignorare
+```text
+.github/workflows/ci.yml
+```
 
-Utilizzata per:
+Il workflow viene eseguito automaticamente su pull request verso `main`.
 
-ambiente dev
+La pipeline è divisa in due job:
 
-risorse dimostrative
+| Job | Working directory | Obiettivo |
+| --- | --- | --- |
+| `Build sito (Node)` | `folder_sito` | Verificare installazione, test e build del sito |
+| `Terraform fmt & validate` | `folder_sito/infra/tf` | Verificare formattazione e validità della configurazione Terraform |
 
-static website S3 pubblico
+#### Job applicativo
 
-Controlli skippati:
+Il job applicativo esegue:
 
-CKV_AWS_53 → S3 versioning
+```bash
+npm ci
+npm test
+npm run build
+```
 
-CKV_AWS_54 → block public ACLs
+`npm ci` installa le dipendenze in modo riproducibile usando `package-lock.json`.
 
-CKV_AWS_55 → block public policies
+`npm test` esegue i test automatici Node, che verificano:
 
-CKV_AWS_56 → restrict public buckets
+- generazione di `versione.json`;
+- generazione di `index.html`;
+- presenza dei 6 corsi;
+- totale ore corretto;
+- assenza del vecchio totale errato.
 
-CKV_AWS_70 → access logging
+`npm run build` genera gli artefatti statici dentro `dist/`.
 
-CKV_AWS_119 → encryption
+#### Job Terraform
 
-CKV2_AWS_62 → event notifications
+Il job Terraform valida la parte Infrastructure as Code:
 
-CKV2_AWS_61 → lifecycle rules
+```bash
+terraform fmt -check -recursive
+terraform init -backend=false
+terraform validate
+```
 
-CKV_AWS_18 → access logging
+`terraform fmt -check -recursive` verifica la formattazione dei file `.tf`.
 
-CKV_AWS_6 → encryption
+`terraform init -backend=false` inizializza Terraform senza accedere al backend remoto.
 
-CKV_AWS_144 → cross‑region replication
+`terraform validate` controlla sintassi, riferimenti interni e coerenza generale della configurazione.
 
-CKV_AWS_145 → replication configuration
+### Continuous Delivery / Deploy
 
-Motivazioni:
+Il workflow di deploy si trova in:
 
-il bucket S3 del sito statico deve essere pubblico
+```text
+.github/workflows/deploy.yml
+```
 
-logging, lifecycle e replication non richiesti in dev
+Questo workflow non parte automaticamente su ogni push. Viene avviato manualmente da GitHub Actions tramite `workflow_dispatch`.
 
-alcune risorse sono di stima o dimostrative
+Il deploy pubblica gli artefatti statici generati in `dist/` su Amazon S3.
 
-il Learner Lab non permette IAM roles
-Baseline (checkov.yml)
-Contiene:
+Sequenza logica:
 
-configurazione output (compact, quiet)
+1. checkout del codice;
+2. setup Node.js;
+3. installazione dipendenze;
+4. test applicativi;
+5. build del sito;
+6. configurazione credenziali AWS;
+7. sincronizzazione di `dist/` sul bucket S3;
+8. smoke test sull'endpoint pubblico.
 
-lista dei controlli da ignorare
+Il comando centrale di pubblicazione è:
 
-Utilizzata per:
+```bash
+aws s3 sync dist/ "s3://<bucket_name>" --delete
+```
 
-ambiente dev
+Il flag `--delete` mantiene il bucket allineato alla build corrente, rimuovendo eventuali file non più presenti in `dist/`.
 
-risorse dimostrative
+### Regola operativa
 
-static website S3 pubblico
+Il flusso corretto di lavoro è:
 
-Controlli skippati:
+1. creare un branch dedicato;
+2. modificare codice, test o infrastruttura;
+3. aprire una pull request verso `main`;
+4. attendere il passaggio dei job CI;
+5. mergiare su `main`;
+6. avviare manualmente il workflow di deploy solo quando si vuole pubblicare.
 
-CKV_AWS_53 → S3 versioning
-
-CKV_AWS_54 → block public ACLs
-
-CKV_AWS_55 → block public policies
-
-CKV_AWS_56 → restrict public buckets
-
-CKV_AWS_70 → access logging
-
-CKV_AWS_119 → encryption
-
-CKV2_AWS_62 → event notifications
-
-CKV2_AWS_61 → lifecycle rules
-
-CKV_AWS_18 → access logging
-
-CKV_AWS_6 → encryption
-
-CKV_AWS_144 → cross‑region replication
-
-CKV_AWS_145 → replication configuration
-
-CKV_AWS_6 → S3 bucket should have encryption enabled
-
-CKV_AWS_21 → S3 bucket should have versioning enabled
-Motivo: il versioning è abilitato solo in produzione, non in dev e test, per ridurre complessità e costi.
-
-Motivazioni:
-
-il bucket S3 del sito statico deve essere pubblico
-
-logging, lifecycle e replication non richiesti in dev
-
-alcune risorse sono di stima o dimostrative
-
-il Learner Lab non permette IAM roles
+In sintesi: la CI protegge l'integrazione del codice, il CD controlla la pubblicazione, Terraform governa l'infrastruttura, e S3 serve l'output statico generato dalla build.

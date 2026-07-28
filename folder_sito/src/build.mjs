@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync, cpSync, existsSync } from "node
 const OUT = "dist";
 
 export function totaleOre(corsi) {
-  return corsi.slice(1).reduce((acc, c) => acc + c.ore, 0);
+  return corsi.reduce((acc, c) => acc + c.ore, 0);
 }
 
 export function render(dati, versione) {
