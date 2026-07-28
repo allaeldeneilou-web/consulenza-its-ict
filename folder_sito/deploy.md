@@ -57,3 +57,14 @@ Per eliminare le risorse di un ambiente:
 terraform init -reconfigure -backend-config="key=portale-its/<ambiente>/terraform.tfstate"
 terraform destroy -var="environment=<ambiente>"
 ```
+
+### Generazione file sito
+
+# Posizionarsi in folder_sito e runnare `npm run build`
+
+Il file `index.html` viene generato a partire da `data/corsi.json` tramite lo script `src/build.mjs`. Lo script legge i dati dei corsi e li trasforma in HTML statico, pronto per essere servito dal bucket S3.
+
+# Caricamento file aggiornati:
+- posizionarsi in folder_sito e runnare il seguente comando inserendo al posto di <ambiente> l'ambiente su cui si sta lavorando test - dev - prod
+
+`aws s3 sync dist/ s3://portale-its-<ambiente>-sito --delete`
