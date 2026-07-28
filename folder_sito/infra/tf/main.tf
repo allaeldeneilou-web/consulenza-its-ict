@@ -40,9 +40,10 @@ resource "aws_s3_bucket_website_configuration" "sito" {
 }
 
 resource "aws_s3_bucket_versioning" "sito" {
+  count  = var.environment == "prod" ? 1 : 0
   bucket = aws_s3_bucket.sito.id
   versioning_configuration {
-    status = var.environment == "prod" ? "Enabled" : "Suspended"
+    status = "Enabled"
   }
 }
 

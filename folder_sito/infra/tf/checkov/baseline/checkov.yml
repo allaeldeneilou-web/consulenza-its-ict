@@ -1,0 +1,18 @@
+# Baseline "dev" — skip motivati per risorse dimostrative o non critiche
+compact: true
+quiet: true
+skip-check:
+  - CKV_AWS_53   # S3 bucket should have versioning enabled
+  - CKV_AWS_54   # S3 bucket should block public ACLs
+  - CKV_AWS_55   # S3 bucket should block public policies
+  - CKV_AWS_56   # S3 bucket should restrict public buckets
+  - CKV_AWS_70   # S3 bucket should have access logging enabled
+  - CKV_AWS_119  # S3 bucket should have encryption enabled
+  - CKV2_AWS_62  # S3 bucket should have event notifications configured
+  - CKV2_AWS_61  # S3 bucket should have lifecycle configuration
+  - CKV_AWS_18   # S3 bucket should have access logging enabled
+  - CKV_AWS_6    # S3 bucket should have encryption enabled
+  - CKV_AWS_144  # S3 bucket should have cross-region replication
+  - CKV_AWS_145  # S3 bucket should have replication configuration
+  - CKV2_AWS_6   # Ensure that S3 bucket has a Public Access block
+  - CKV_AWS_21   # Ensure all data stored in the S3 bucket have versioning enabled

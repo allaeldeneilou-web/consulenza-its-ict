@@ -1,0 +1,11 @@
+metadata:
+  id: "CKV_ACME_OWNER_TAG"
+  name: "Ogni risorsa deve avere il tag Owner"
+  category: "CONVENTION"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "*"
+  attribute: "tags.Owner"
+  operator: "exists"
