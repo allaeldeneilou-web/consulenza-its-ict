@@ -1,5 +1,13 @@
 # Perizia tecnica - Portale ITS
 
+#### Autori
+
+```text
+Janice Brun
+Allaeldene Ilou
+Alessandro Verduna
+```
+
 ## Flusso di build, controllo e deploy
 
 Il sito è generato staticamente tramite `src/build.mjs`, uno script Node.js senza dipendenze esterne.
