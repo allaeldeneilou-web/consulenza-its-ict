@@ -136,3 +136,55 @@ Il flusso corretto di lavoro è:
 6. avviare manualmente il workflow di deploy solo quando si vuole pubblicare.
 
 In sintesi: la CI protegge l'integrazione del codice, il CD controlla la pubblicazione, Terraform governa l'infrastruttura, e S3 serve l'output statico generato dalla build.
+
+-------------------------------
+# CHECKOV
+
+Struttura della cartella Checkov
+infra/tf/checkov/
+
+baseline/checkov.yml
+
+configurazione Checkov
+skip dei controlli non applicabili in dev
+checks/*.yaml
+
+regole custom aziendali
+
+Baseline (checkov.yml)
+Contiene:
+
+configurazione output (compact, quiet)
+lista dei controlli da ignorare
+
+Utilizzata per:
+
+ambiente dev
+risorse dimostrative
+static website S3 pubblico
+
+Controlli skippati:
+CKV_AWS_53 → S3 versioning
+CKV_AWS_54 → block public ACLs
+CKV_AWS_55 → block public policies
+CKV_AWS_56 → restrict public buckets
+CKV_AWS_70 → access logging
+CKV_AWS_119 → encryption
+CKV2_AWS_62 → event notifications
+CKV2_AWS_61 → lifecycle rules
+CKV_AWS_18 → access logging
+CKV_AWS_6 → encryption
+CKV_AWS_144 → cross‑region replication
+CKV_AWS_145 → replication configuration
+CKV_AWS_6 → S3 bucket should have encryption enabledCKV_AWS_21 → S3 bucket should have versioning enabled
+
+Motivo: il versioning è abilitato solo in produzione, non in dev e test, per ridurre complessità e costi.
+Motivazioni:
+
+il bucket S3 del sito statico deve essere pubblico
+
+logging, lifecycle e replication non richiesti in dev
+
+alcune risorse sono di stima o dimostrative
+
+il Learner Lab non permette IAM roles
