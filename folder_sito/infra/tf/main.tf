@@ -1,7 +1,6 @@
 terraform {
   backend "s3" {
     bucket = "portale-its-tfstate"
-    key    = "portale-its/${var.environment}/terraform.tfstate"
     region = "us-east-1"
   }
 
