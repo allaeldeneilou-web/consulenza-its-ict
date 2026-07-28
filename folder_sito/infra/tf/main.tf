@@ -13,12 +13,25 @@ terraform {
   }
 }
 
+variable "environment" {
+  description = "Ambiente di deploy: dev, test, prod"
+  type        = string
+  validation {
+    condition     = contains(["dev", "test", "prod"], var.environment)
+    error_message = "I valori ammessi sono: dev, test, prod."
+  }
+}
+
+locals {
+  prefix = "portale-its-${var.environment}"
+}
+
 provider "aws" {
   region = "us-east-1"
 }
 
 resource "aws_s3_bucket" "sito" {
-  bucket = "portale-its-sito"
+  bucket = "${local.prefix}-sito"
 }
 
 resource "aws_s3_bucket_website_configuration" "sito" {
@@ -54,7 +67,8 @@ output "sito_url" {
 }
 
 resource "aws_dynamodb_table" "iscrizioni" {
-  name         = "iscrizioni"
+  count        = var.environment != "dev" ? 1 : 0
+  name         = "${local.prefix}-iscrizioni"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "iscrizioneId"
 
@@ -73,6 +87,6 @@ resource "aws_dynamodb_table" "iscrizioni" {
 
   tags = {
     Progetto = "portale-its"
-    Ambiente = "produzione"
+    Ambiente = var.environment
   }
 }
