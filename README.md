@@ -137,54 +137,87 @@ Il flusso corretto di lavoro è:
 
 In sintesi: la CI protegge l'integrazione del codice, il CD controlla la pubblicazione, Terraform governa l'infrastruttura, e S3 serve l'output statico generato dalla build.
 
--------------------------------
-# CHECKOV
+## Checkov
 
-Struttura della cartella Checkov
-infra/tf/checkov/
+Checkov è utilizzato per eseguire controlli di sicurezza e qualità sulla configurazione Terraform presente in `folder_sito/infra/tf`.
 
-baseline/checkov.yml
+L’obiettivo non è bloccare ogni scelta progettuale del laboratorio, ma rendere esplicite le verifiche IaC, distinguendo tra:
 
-configurazione Checkov
-skip dei controlli non applicabili in dev
-checks/*.yaml
+- controlli applicabili anche in ambiente dev;
+- controlli non applicabili al contesto dimostrativo;
+- regole custom definite dal team.
 
-regole custom aziendali
+### Struttura
 
-Baseline (checkov.yml)
-Contiene:
+```text
+folder_sito/infra/tf/checkov/
+├── baseline/
+│   └── checkov.yml
+└── checks/
+    └── CKV_ACME_OWNER_TAG.yaml
+```
 
-configurazione output (compact, quiet)
-lista dei controlli da ignorare
+### Baseline dev
 
-Utilizzata per:
+Il file `checkov/baseline/checkov.yml` contiene la configurazione Checkov utilizzata per l’ambiente di sviluppo.
 
-ambiente dev
-risorse dimostrative
-static website S3 pubblico
+Include:
 
-Controlli skippati:
-CKV_AWS_53 → S3 versioning
-CKV_AWS_54 → block public ACLs
-CKV_AWS_55 → block public policies
-CKV_AWS_56 → restrict public buckets
-CKV_AWS_70 → access logging
-CKV_AWS_119 → encryption
-CKV2_AWS_62 → event notifications
-CKV2_AWS_61 → lifecycle rules
-CKV_AWS_18 → access logging
-CKV_AWS_6 → encryption
-CKV_AWS_144 → cross‑region replication
-CKV_AWS_145 → replication configuration
-CKV_AWS_6 → S3 bucket should have encryption enabledCKV_AWS_21 → S3 bucket should have versioning enabled
+* output compatto;
+* modalità quiet;
+* lista dei controlli esclusi perché non coerenti con il contesto del laboratorio.
 
-Motivo: il versioning è abilitato solo in produzione, non in dev e test, per ridurre complessità e costi.
-Motivazioni:
+La baseline viene usata per evitare falsi positivi su risorse dimostrative, mantenendo comunque attivo il controllo automatico della configurazione Terraform.
 
-il bucket S3 del sito statico deve essere pubblico
+### Controlli esclusi
 
-logging, lifecycle e replication non richiesti in dev
+Alcuni controlli AWS sono stati esclusi perché il progetto è eseguito in ambiente dev/test e non rappresenta una configurazione di produzione completa.
 
-alcune risorse sono di stima o dimostrative
+| Check                                                  | Ambito                 | Motivazione                                                        |
+| ------------------------------------------------------ | ---------------------- | ------------------------------------------------------------------ |
+| `CKV_AWS_53`, `CKV_AWS_21`                             | S3 versioning          | Il versioning non è richiesto in dev/test                          |
+| `CKV_AWS_54`, `CKV_AWS_55`, `CKV_AWS_56`, `CKV2_AWS_6` | S3 public access block | Il bucket del sito statico deve essere pubblicamente raggiungibile |
+| `CKV_AWS_70`, `CKV_AWS_18`                             | Access logging         | Logging non previsto nel perimetro dimostrativo                    |
+| `CKV_AWS_119`, `CKV_AWS_6`                             | Encryption             | Cifratura non richiesta per le risorse dimostrative del lab        |
+| `CKV2_AWS_62`                                          | Event notifications    | Notifiche eventi non necessarie                                    |
+| `CKV2_AWS_61`                                          | Lifecycle rules        | Lifecycle non richiesto in ambiente dev                            |
+| `CKV_AWS_144`, `CKV_AWS_145`                           | Replication            | Replica cross-region non prevista nel laboratorio                  |
 
-il Learner Lab non permette IAM roles
+Queste esclusioni non rappresentano best practice per un ambiente produttivo. In produzione andrebbero rivalutate e, dove necessario, rimosse.
+
+### Regole custom
+
+La cartella `checkov/checks/` contiene controlli custom definiti dal team.
+
+Attualmente è presente la regola:
+
+```text
+CKV_ACME_OWNER_TAG
+```
+
+Questa policy verifica la presenza del tag `Owner` sulle risorse Terraform, con l’obiettivo di introdurre una convenzione minima di governance e responsabilità sulle risorse cloud.
+
+### Esecuzione locale
+
+Per eseguire Checkov localmente:
+
+```bash
+py -m checkov \
+  -d folder_sito/infra/tf \
+  --config-file folder_sito/infra/tf/checkov/baseline/checkov.yml \
+  --external-checks-dir folder_sito/infra/tf/checkov/checks
+```
+
+### Integrazione CI
+
+Checkov è integrato nella pipeline GitHub Actions.
+
+A ogni pull request verso `main`, la CI esegue:
+
+1. build e test del sito;
+2. `terraform fmt`;
+3. `terraform init -backend=false`;
+4. `terraform validate`;
+5. scan Checkov con baseline dev e policy custom.
+
+Il controllo Checkov non esegue deploy e non modifica risorse AWS. Serve come quality gate per verificare automaticamente la configurazione IaC prima del merge.
